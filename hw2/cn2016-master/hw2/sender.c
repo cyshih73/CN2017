@@ -19,25 +19,25 @@ int main(int argc, char *argv[]) {
         printf("Usage: %s agent_ip agent_port input_path\n", argv[0]);
         exit(1);
     }
-    
+
     char agent_ip[MAX_LEN], agent_port[MAX_LEN], input_path[MAX_LEN];
     strcpy(agent_ip, argv[1]);
     strcpy(agent_port, argv[2]);
     strcpy(input_path, argv[3]);
-    
+
     FILE *input = fopen(input_path, "rb");
     if (input == NULL) {
         printf("Open input file error\n");
         exit(1);
     }
-    
+
     int listen_fd;
     struct sockaddr_in server, client;
     create_socket(&listen_fd, &server, 5487);
-    
+
     int flags = fcntl(listen_fd, F_GETFL, 0);
     fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
-    
+
     struct sockaddr_in agent;
     set_addr(&agent, agent_ip, atoi(agent_port));
 
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     struct timeval timeout;
     FD_ZERO(&master_set);
     FD_SET(listen_fd, &master_set);
-    
+
     int seq = 0;
     int winSize = 1;
     int left = 1;
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
             printf("send\tfin\n");
             goto WAIT;
         }
-        
+
         while (seq + 1 < left + winSize) {
             seq++;
             Packet pkt = {DATA, seq, 0, ""};
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
                 exit(1);
             }
             pkt.len = res;
-            
+
             if (seq > max_sent) {
                 printf("send\tdata\t#%d,\twinSize = %d\n", pkt.seq, winSize);
             }
@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
             my_send(listen_fd, &pkt, &agent);
             max_sent = max(max_sent, pkt.seq);
         }
-        
+
         WAIT: ;
         memcpy(&working_set, &master_set, sizeof(master_set));
         timeout.tv_sec = 1;
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
         if (res > 0) {
             while (1) {
                 Packet pkt;
-                
+
                 int num = my_recv(listen_fd, &pkt, &client);
                 if (num <= 0) {
                     break;
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
                         }
                     }
                     acked[pkt.seq]++;
-                    
+
                     while (acked[left] > 0) {
                         left++;
                     }
