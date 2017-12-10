@@ -22,36 +22,53 @@ def main(args):
     num_packets = 0
     lost_packets = 0
     while True:
+        out_of_data, out_of_ack, get_out = 0, 0, 0
         #data
-        try:
-            pickle_msg, _ = sender_receive.recvfrom(2048)
-            msg =  pickle.loads(pickle_msg)
-            print("get",msg['type'], '#'+str(msg['seq']+1), sep="\t")
-            num_packets = num_packets + 1
+        while out_of_data == 0:
+            try:
+                pickle_msg, _ = sender_receive.recvfrom(2048)
+                msg =  pickle.loads(pickle_msg)
+                print("get",msg['type'], '#'+str(msg['seq']+1), sep="\t")
+                num_packets = num_packets + 1
+                if msg['type'] == 'fin':
+                    print("get",msg['type'], sep="\t")
+                    receiver_send.sendto(pickle_msg, (args.receiver_ip, int(args.receiver_port)))
+                    print("fwd",msg['type'], sep="\t")
+                    break
 
-            #random drop
-            if (random.randint(1,1000) % (1/float(args.loss_rate))) != 0:
-                receiver_send.sendto(pickle_msg, (args.receiver_ip, int(args.receiver_port)))
-                loss_rate = "{0:.4f}".format(lost_packets/num_packets)
-                print("fwd",msg['type'], '#'+str(msg['seq']+1)+',', 'loss rate = '+loss_rate, sep="\t")
-            else:
-                lost_packets = lost_packets + 1
-                loss_rate = "{0:.4f}".format(lost_packets/num_packets)
-                print("drop",msg['type'], '#'+str(msg['seq']+1)+',', 'loss rate = '+loss_rate, sep="\t")
+                #random drop
+                #if (random.randint(1,2147483646) % (1/float(args.loss_rate))) != 0:
+                if 1:
+                    receiver_send.sendto(pickle_msg, (args.receiver_ip, int(args.receiver_port)))
+                    loss_rate = "{0:.4f}".format(lost_packets/num_packets)
+                    print("fwd",msg['type'], '#'+str(msg['seq']+1)+',', 'loss rate = '+loss_rate, sep="\t")
+                else:
+                    lost_packets = lost_packets + 1
+                    loss_rate = "{0:.4f}".format(lost_packets/num_packets)
+                    print("drop",msg['type'], '#'+str(msg['seq']+1)+',', 'loss rate = '+loss_rate, sep="\t")
 
-        except socket.error:
-            pass
+            except socket.error:
+                out_of_data = 1
 
         #ack
-        try:
-            pickle_ack, _ = receiver_receive.recvfrom(2048)
-            ack =  pickle.loads(pickle_ack)
-            print("get",ack['type'], '#'+str(ack['seq']+1), sep="\t")
+        while out_of_ack == 0:
+            try:
+                pickle_ack, _ = receiver_receive.recvfrom(2048)
+                ack =  pickle.loads(pickle_ack)
+                if ack['type'] == 'finack':
+                    print("get",ack['type'], sep="\t")
+                    sender_send.sendto(pickle_ack, (args.sender_ip, int(args.sender_port)))
+                    print("fwd",ack['type'], sep="\t")
+                    get_out = 1
 
-            sender_send.sendto(pickle_ack, (args.sender_ip, int(args.sender_port)))
-            print("fwd",ack['type'], '#'+str(ack['seq']+1), sep="\t")
-        except socket.error:
-            pass
+                print("get",ack['type'], '#'+str(ack['seq']+1), sep="\t")
+
+                sender_send.sendto(pickle_ack, (args.sender_ip, int(args.sender_port)))
+                print("fwd",ack['type'], '#'+str(ack['seq']+1), sep="\t")
+            except socket.error:
+                out_of_ack = 1
+        if get_out != 0:
+            break
 
     sender_send.close()
     sender_receive.close()

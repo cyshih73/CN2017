@@ -15,28 +15,48 @@ def main(args):
     agent.bind((self_ip, self_port))
     acking = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    data = []
+    acked, written = -1, -1
 
-    while True:
-        try:
-            pickle_msg, _ = agent.recvfrom(2048)
-            msg = pickle.loads(pickle_msg)
-            print("recv", msg['type'], '#'+str(msg['seq']+1), sep="\t")
+    with open(args.output, 'wb') as f:
+        resending = -1
+        while True:
+            try:
+                pickle_msg, _ = agent.recvfrom(2048)
+                msg = pickle.loads(pickle_msg)
+                if msg['seq'] == acked + 1 and (acked - written) < buffer_size:
+                    print("recv", msg['type'], '#'+str(msg['seq']+1), sep="\t")
+                    data.append(msg['data'])
+                    acked = msg['seq']
+                else:
+                    print("drop", msg['type'], '#'+str(msg['seq']+1), sep="\t")
 
-            if msg['type'] == 'fin':
-                ack = {'type': 'finack', 'seq': msg['seq']}
-            else:
-                ack = {'type': 'ack', 'seq': msg['seq']}
+                #ack processing
+                if msg['type'] == 'fin' and resending+1 - acked == 0:
+                    ack = {'type': 'finack', 'seq': acked}
+                else:
+                    resending = msg['seq']
+                    ack = {'type': 'ack', 'seq': acked}
 
-            pickle_ack = pickle.dumps(ack, -1)
-            acking.sendto(pickle_ack, (args.ip, int(args.port)))
-            print("send", ack['type'], '#'+str(ack['seq']+1), sep="\t")
+                pickle_ack = pickle.dumps(ack, -1)
+                acking.sendto(pickle_ack, (args.ip, int(args.port)))
+                if ack['type'] == 'finack':
+                    print("send", ack['type'], sep="\t")
+                    break
+                else:
+                    print("send", ack['type'], '#'+str(ack['seq']+1), sep="\t")
 
-            #final data
-            if ack['type'] == 'finack':
-                break
+            except socket.error:
+                pass
 
-        except socket.error:
-            pass
+            #flush
+            if acked - written >= buffer_size:
+                print("flush")
+                for i in range(32):
+                    if data[i]:
+                        f.write(data[i])
+                data = []
+                written = acked
 
     agent.close()
     acking.close()
