@@ -3,11 +3,12 @@ import argparse
 import pickle
 import random
 
+#config
 self_ip = "127.0.0.3"
 self_port_s = 3001
 self_port_r = 3002
 
-
+#python agent.py --sender_ip 127.0.0.2 --sender_port 3003 --receiver_ip 127.0.0.4 --receiver_port 3004 --loss_rate 0.1
 def main(args):
     sender_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sender_receive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -37,8 +38,9 @@ def main(args):
                     break
 
                 #random drop
-                #if (random.randint(1,2147483646) % (1/float(args.loss_rate))) != 0:
-                if 1:
+                YN = 1
+                if args.loss_rate != 0: YN = (random.randint(1,2147483646) % (1/float(args.loss_rate)))
+                if  YN != 0:
                     receiver_send.sendto(pickle_msg, (args.receiver_ip, int(args.receiver_port)))
                     loss_rate = "{0:.4f}".format(lost_packets/num_packets)
                     print("fwd",msg['type'], '#'+str(msg['seq']+1)+',', 'loss rate = '+loss_rate, sep="\t")
@@ -47,8 +49,7 @@ def main(args):
                     loss_rate = "{0:.4f}".format(lost_packets/num_packets)
                     print("drop",msg['type'], '#'+str(msg['seq']+1)+',', 'loss rate = '+loss_rate, sep="\t")
 
-            except socket.error:
-                out_of_data = 1
+            except socket.error: out_of_data = 1
 
         #ack
         while out_of_ack == 0:
@@ -60,29 +61,22 @@ def main(args):
                     sender_send.sendto(pickle_ack, (args.sender_ip, int(args.sender_port)))
                     print("fwd",ack['type'], sep="\t")
                     get_out = 1
-
                 print("get",ack['type'], '#'+str(ack['seq']+1), sep="\t")
 
                 sender_send.sendto(pickle_ack, (args.sender_ip, int(args.sender_port)))
                 print("fwd",ack['type'], '#'+str(ack['seq']+1), sep="\t")
-            except socket.error:
-                out_of_ack = 1
-        if get_out != 0:
-            break
+            except socket.error: out_of_ack = 1
+        if get_out != 0: break #end
 
     sender_send.close()
     sender_receive.close()
     receiver_send.close()
     receiver_receive.close()
 
-
-
-#python agent.py --sender_ip 127.0.0.2 --sender_port 3003 --receiver_ip 127.0.0.4 --receiver_port 3004 --loss_rate 0.1
 def parse_args():
     parser = argparse.ArgumentParser(description='CN2017 HW2 agent')
     parser.add_argument('--sender_ip')
     parser.add_argument('--sender_port')
-
     parser.add_argument('--receiver_ip')
     parser.add_argument('--receiver_port')
     parser.add_argument('--loss_rate')
