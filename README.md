@@ -1,2 +1,3 @@
 # CN2017
-Repository for Computer Network 2017 Fall
+### NTU Computer Network, 2017 fall
+#### CSIE 3510 
